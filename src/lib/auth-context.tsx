@@ -46,6 +46,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (result.success && result.data) {
       setProfile(result.data);
       setIsAdmin(result.data.is_admin);
+      return true;
+    }
+    return false;
+  };
+
+  // Initialize user defaults (categories and payment methods)
+  const initializeDefaults = async (userId: string) => {
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+      const { data: { session } } = await AuthService.getCurrentSession();
+      
+      if (!session) return;
+
+      const response = await fetch(`${API_URL}/users/initialize-defaults`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        console.log('✅ User defaults initialized');
+      }
+    } catch (error) {
+      console.error('Failed to initialize defaults:', error);
+      // Don't fail auth if this fails
     }
   };
 
@@ -55,9 +82,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const sessionResult = await AuthService.getCurrentSession();
         if (sessionResult.success && sessionResult.data) {
-          setSession(sessionResult.data);
-          setUser(sessionResult.data.user);
-          await loadProfile(sessionResult.data.user.id);
+          // Verify user still exists in database
+          const profileLoaded = await loadProfile(sessionResult.data.user.id);
+          
+          if (profileLoaded) {
+            setSession(sessionResult.data);
+            setUser(sessionResult.data.user);
+          } else {
+            // User deleted from database, sign out
+            console.warn('User profile not found, signing out...');
+            await AuthService.signOut();
+            setSession(null);
+            setUser(null);
+            setProfile(null);
+            setIsAdmin(false);
+          }
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -72,12 +111,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = AuthService.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event);
       
-      setSession(session);
-      setUser(session?.user || null);
-
       if (session?.user) {
-        await loadProfile(session.user.id);
+        // Verify user still exists in database
+        const profileLoaded = await loadProfile(session.user.id);
+        
+        if (profileLoaded) {
+          setSession(session);
+          setUser(session.user);
+          
+          // Initialize defaults for new users (after email verification)
+          if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+            await initializeDefaults(session.user.id);
+          }
+        } else {
+          // User deleted from database, sign out
+          console.warn('User profile not found, signing out...');
+          await AuthService.signOut();
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setIsAdmin(false);
+        }
       } else {
+        setSession(null);
+        setUser(null);
         setProfile(null);
         setIsAdmin(false);
       }
@@ -85,10 +142,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     });
 
+    // Periodic validation check (every 5 minutes)
+    const validateUserInterval = setInterval(async () => {
+      if (user) {
+        const profileLoaded = await loadProfile(user.id);
+        if (!profileLoaded) {
+          console.warn('User profile no longer exists, signing out...');
+          await AuthService.signOut();
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setIsAdmin(false);
+          
+          toast({
+            variant: 'destructive',
+            title: 'Session Expired',
+            description: 'Your account is no longer active. Please contact support if this is an error.',
+          });
+        }
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
     return () => {
       subscription.unsubscribe();
+      clearInterval(validateUserInterval);
     };
-  }, []);
+  }, [user]);
 
   const signUp = async (email: string, password: string, fullName?: string): Promise<boolean> => {
     try {
@@ -126,7 +205,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(true);
       const result = await AuthService.signIn(email, password);
 
-      if (result.success) {
+      if (result.success && result.data) {
+        // Manually update state immediately
+        setSession(result.data);
+        setUser(result.data.user);
+        
+        // Load profile
+        if (result.data.user) {
+          await loadProfile(result.data.user.id);
+        }
+        
         toast({
           title: 'Welcome Back',
           description: 'You have successfully signed in.',

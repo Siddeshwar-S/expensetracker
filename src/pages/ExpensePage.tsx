@@ -6,12 +6,13 @@ import SettingsPage from "@/components/SettingsPage";
 import TransactionList from "@/components/TransactionList";
 import { ProfileSettings } from "@/components/ProfileSettings";
 import { UserManagement } from "@/components/UserManagement";
-import { AdminDebug } from "@/components/AdminDebug";
+import { SessionManagement } from "@/components/SessionManagement";
 import { Button } from "@/components/ui/button";
+import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth-context";
 import { useEnhancedTransactions } from "@/lib/enhanced-transaction-context";
-import { BarChart3, Home, List, Plus, PlusCircle, Settings, TrendingDown, TrendingUp, LogOut, User, Users } from "lucide-react";
+import { BarChart3, Home, List, Plus, PlusCircle, Settings, TrendingDown, TrendingUp, LogOut, User, Users, Monitor } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
     
@@ -27,13 +28,6 @@ const Index = () => {
   const handleLogout = async () => {
     await signOut();
   };
-
-  // Debug admin status and force refresh
-  useEffect(() => {
-    console.log('ExpensePage - profile:', profile);
-    console.log('ExpensePage - isAdmin:', isAdmin);
-    console.log('ExpensePage - profile.is_admin:', profile?.is_admin);
-  }, [profile, isAdmin]);
 
   // Update last sync time in localStorage when online and not syncing
   useEffect(() => {
@@ -93,22 +87,16 @@ const Index = () => {
               )}
             </div>
             <div className="flex items-center space-x-2 sm:space-x-4">
-              <Button
+              <InteractiveHoverButton
+                text="Expense"
                 onClick={() => setActiveTab("add-expense")}
-                className="bg-red-600 hover:bg-red-700 text-white min-h-[44px] min-w-[44px] sm:h-auto sm:w-auto p-2 sm:px-3 sm:py-2"
-                size="sm"
-              >
-                <TrendingDown className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Add Expense</span>
-              </Button>
-              <Button
+                className="bg-background border-red-500 [&>div:last-child]:bg-red-600 w-28 sm:w-32"
+              />
+              <InteractiveHoverButton
+                text="Income"
                 onClick={() => setActiveTab("add-income")}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-[44px] min-w-[44px] sm:h-auto sm:w-auto p-2 sm:px-3 sm:py-2"
-                size="sm"
-              >
-                <TrendingUp className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Add Income</span>
-              </Button>
+                className="bg-background border-emerald-500 [&>div:last-child]:bg-emerald-600 w-28 sm:w-32"
+              />
               <Button
                 onClick={() => navigate("/")}
                 variant="outline"
@@ -134,11 +122,6 @@ const Index = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Debug Component - Remove after fixing */}
-        <div className="mb-4">
-          <AdminDebug />
-        </div>
-        
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-6 bg-gray-100 rounded-xl flex gap-1 p-1 justify-start overflow-x-auto">
             <TabsTrigger value="dashboard" className="flex-shrink-0 font-semibold text-gray-700 rounded-lg px-3 py-2 transition-colors focus:outline-none data-[state=active]:bg-white data-[state=active]:shadow data-[state=active]:text-black data-[state=active]:font-bold hover:bg-white/70">
@@ -162,10 +145,16 @@ const Index = () => {
               <span className="hidden sm:inline">Profile</span>
             </TabsTrigger>
             {isAdmin && (
-              <TabsTrigger value="users" className="flex-shrink-0 font-semibold text-gray-700 rounded-lg px-3 py-2 transition-colors focus:outline-none data-[state=active]:bg-white data-[state=active]:shadow data-[state=active]:text-black data-[state=active]:font-bold hover:bg-white/70">
-                <Users className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Users</span>
-              </TabsTrigger>
+              <>
+                <TabsTrigger value="users" className="flex-shrink-0 font-semibold text-gray-700 rounded-lg px-3 py-2 transition-colors focus:outline-none data-[state=active]:bg-white data-[state=active]:shadow data-[state=active]:text-black data-[state=active]:font-bold hover:bg-white/70">
+                  <Users className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Users</span>
+                </TabsTrigger>
+                <TabsTrigger value="sessions" className="flex-shrink-0 font-semibold text-gray-700 rounded-lg px-3 py-2 transition-colors focus:outline-none data-[state=active]:bg-white data-[state=active]:shadow data-[state=active]:text-black data-[state=active]:font-bold hover:bg-white/70">
+                  <Monitor className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Sessions</span>
+                </TabsTrigger>
+              </>
             )}
           </TabsList>
 
@@ -202,9 +191,14 @@ const Index = () => {
           </TabsContent>
 
           {isAdmin && (
-            <TabsContent value="users" className="mt-6">
-              <UserManagement currentUserId={profile?.id} />
-            </TabsContent>
+            <>
+              <TabsContent value="users" className="mt-6">
+                <UserManagement currentUserId={profile?.id} />
+              </TabsContent>
+              <TabsContent value="sessions" className="mt-6">
+                <SessionManagement />
+              </TabsContent>
+            </>
           )}
 
         </Tabs>

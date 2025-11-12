@@ -28,13 +28,17 @@ export interface AuthResponse<T = any> {
 }
 
 export class AuthService {
-  // Sign up new user
+  // Sign up new user (direct Supabase)
   static async signUp(email: string, password: string, fullName?: string): Promise<AuthResponse<User>> {
     try {
+      // Redirect to home page after email verification
+      const redirectUrl = window.location.origin;
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo: redirectUrl,
           data: {
             full_name: fullName || email.split('@')[0],
           },
@@ -59,7 +63,7 @@ export class AuthService {
     }
   }
 
-  // Sign in user
+  // Sign in user (direct Supabase)
   static async signIn(email: string, password: string): Promise<AuthResponse<Session>> {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -180,6 +184,10 @@ export class AuthService {
       const { data, error } = await query.single();
 
       if (error) {
+        // Check if it's a "not found" error
+        if (error.code === 'PGRST116' || error.message.includes('no rows')) {
+          return { data: null, error: 'User profile not found', success: false };
+        }
         return { data: null, error: error.message, success: false };
       }
 
@@ -225,8 +233,9 @@ export class AuthService {
   // Reset password
   static async resetPassword(email: string): Promise<AuthResponse<boolean>> {
     try {
+      // Redirect to home page after password reset
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: window.location.origin,
       });
 
       if (error) {
